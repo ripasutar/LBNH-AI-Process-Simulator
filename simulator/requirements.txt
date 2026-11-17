@@ -1,0 +1,5 @@
+numpy>=1.26
+scipy>=1.11
+CoolProp>=6.6
+thermo>=0.2.27
+chemicals>=1.1

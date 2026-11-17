@@ -1,0 +1,108 @@
+{
+ "BOGC": {
+  "BOG_composition": {
+   "CH4": 0.6307205008118134,
+   "He": 0.0573537351280931,
+   "N2": 0.3119257640600934
+  },
+  "BOG_compressor_MW": 10.977549712482132,
+  "BOG_total_kmolh": 3569.308196012391,
+  "end_flash_T_C": -164.499366556265,
+  "end_flash_vapour_fraction": 0.10263470700375416
+ },
+ "HLS": {
+  "JT_liquid_yield": 0.3249235900194548,
+  "cycle_flow_kmolh": 3414.7200809413407,
+  "kWh_per_litre": 1.447222596107038,
+  "power_MW": 9.347370973689962
+ },
+ "KPI": {
+  "CH4_to_LNG": 0.990562859984517,
+  "He_overall_recovery": 0.9845788945426732,
+  "kWh_per_t_LNG": 345.59145128535204
+ },
+ "LNGP": {
+  "MCHE_duty_MW": 223.9950029423706,
+  "MCHE_min_approach_K": 3.0,
+  "MR_composition": {
+   "C2H6": 0.4229560996551125,
+   "C3H8": 0.12397862379333972,
+   "CH4": 0.3290949583689972,
+   "N2": 0.12397031818255061
+  },
+  "MR_flow_kmolh": 47163.394374361575,
+  "MR_suction_bar": 3.5048500453534723,
+  "heavy_HC_kmolh": 415.3847279718608,
+  "mixed_refrigerant_compressor_MW": 100.99959938560156,
+  "propane_compressor_MW": 54.39043701086796,
+  "total_power_MW": 155.3900363964695
+ },
+ "NRHR": {
+  "He_recovery": 0.9853175329134444,
+  "N2_recovered_kmolh": 1125.3966568188011,
+  "NRU_CH4_recovery": 0.9850048188475573,
+  "NRU_bottom_T_C": -102.25843050544356,
+  "NRU_condenser_MW": 2.935090244894422,
+  "NRU_reboiler_MW": 2.2821644528519904,
+  "NRU_top_T_C": -148.37287449425958,
+  "crude_He_purity": 0.9839992938800041,
+  "rich_LNG_N2": 0.009581337041783993,
+  "rich_LNG_kmolh": 2238.9301074817067
+ },
+ "economics": {
+  "assumptions": {
+   "discount": 0.1,
+   "elec_price": 0.07,
+   "gas_price": 3.0,
+   "he_price": 30.0,
+   "hours": 8000,
+   "life": 20,
+   "lng_basis": "greenfield",
+   "lng_price": 10.0,
+   "tax": 0.21,
+   "usd_per_tpa_2024": 1392.8038467915767
+  },
+  "helium_addon": {
+   "annual_net": 269245232.78291875,
+   "capex": 175367168.0324593,
+   "cost_fixed": 8768358.401622964,
+   "cost_power": 20548423.226299673,
+   "irr": 0.6789256172751468,
+   "methane_uplift": 104796984.78442544,
+   "npv": 1355426006.2893095,
+   "payback_y": 1,
+   "revenue_he": 193765029.62641597
+  },
+  "whole_complex": {
+   "annual_net": 1336244516.518432,
+   "capex": 6368456601.386646,
+   "capex_he": 175367168.0324593,
+   "capex_lng": 6193089433.354187,
+   "cost_feed": 693554095.5016776,
+   "cost_fixed": 318422830.0693323,
+   "cost_power": 107566843.6083226,
+   "irr": 0.14810515614654352,
+   "npv": 2301282807.7998466,
+   "payback_y": 6,
+   "revenue_he": 193765029.62641597,
+   "revenue_lng": 2262023256.0713487
+  }
+ },
+ "power_MW": {
+  "bog_compressor": 10.977549712482132,
+  "c3mr": 155.3900363964695,
+  "he_separation": 0.0,
+  "helium_liquefier": 9.347370973689962,
+  "nru_condenser": 16.368692217934466,
+  "total": 192.08364930057607
+ },
+ "products": {
+  "LNG_N2_molfrac": 0.016394583206373714,
+  "LNG_kmolh": 32820.19737807843,
+  "LNG_t_per_h": 555.8113448297486,
+  "liquid_He_L_per_h": 6458.834320880533,
+  "liquid_He_kg_per_h": 807.3542901100666
+ },
+ "sealed_utc": "2026-09-25T15:55:28+00:00",
+ "statement": "Predictions of the AI-built LBNH simulator, fixed before any Aspen Plus result was seen. Inputs used: Table 1 feed, the block diagram, the technology choices, and the property-method sentence from the paper. Everything else was designed by the tool; see design_basis.py and open_items.md."
+}

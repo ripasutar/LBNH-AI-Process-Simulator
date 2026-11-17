@@ -1,0 +1,896 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LBNH live simulator</title>
+<style>
+:root{
+  --bg:#F3F6F8; --panel:#FFFFFF; --panel2:#F2F7F9; --line:#D6E1E7; --ink:#10242E; --ink2:#47616E; --ink3:#6B8592;
+  --gas:#7895A8; --lng:#1E9BD7; --bog:#7B5CD6; --n2:#2E9E48; --he:#DB8500; --ai:#12968B; --warn:#DB8500; --bad:#D6453A; --pow:#B26A00;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 "Segoe UI",Calibri,Arial,sans-serif}
+main{max-width:1280px;margin:0 auto;padding:18px 20px 40px}
+header{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:12px}
+.eyebrow{font-size:12px;letter-spacing:.1em;color:var(--ink3);font-weight:600;text-transform:uppercase}
+h1{font-size:28px;margin:2px 0 0;font-weight:700}
+.sub{color:var(--ink2);font-size:14px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px;position:relative}
+button{font:inherit;border-radius:8px;padding:8px 14px;cursor:pointer;border:1px solid var(--line);background:var(--panel2);color:var(--ink)}
+button:hover{border-color:var(--ai)}
+button.go{background:var(--ai);border-color:var(--ai);color:#fff;font-weight:700;font-size:16px;padding:9px 24px}
+button.play{background:#E3F3F1;border-color:var(--ai);color:var(--ink);font-weight:600}
+button:disabled{opacity:.45;cursor:wait}
+.tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* ---------- diagram ---------- */
+svg{width:100%;height:auto;display:block}
+.unit rect.box,.unit .shape{fill:var(--panel2);stroke:#9DB5C1;stroke-width:1.5}
+.unit text{fill:var(--ink)}
+.t-name{font-size:15px;font-weight:700}
+.t-small{font-size:12.5px;fill:var(--ink2)!important}
+.t-val{font-size:20px;font-weight:700;font-family:Consolas,monospace}
+.t-pow{font-size:14px;font-weight:700;font-family:Consolas,monospace;fill:var(--pow)!important}
+.badge circle{fill:var(--ai)} .badge text{fill:#fff!important;font-weight:800;font-size:14px}
+.pipe-bg{fill:none;stroke-linecap:round;opacity:.22}
+.pipe{fill:none;stroke-linecap:round;stroke-dasharray:2 16;animation:flow 1.1s linear infinite}
+@keyframes flow{to{stroke-dashoffset:-18}}
+svg.solving .pipe{animation-duration:.35s}
+.lbl{font-size:13px;font-weight:600}
+.lbl.mono{font-family:Consolas,monospace}
+.delta{font-size:12.5px;font-weight:700;font-family:Consolas,monospace}
+.up{fill:var(--n2)!important;color:var(--n2)} .down{fill:var(--bad)!important;color:var(--bad)}
+.spin{transform-box:fill-box;transform-origin:center;animation:spin 8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.rotor{transform-box:fill-box;transform-origin:center;animation:spin 1.2s linear infinite}
+.bubble{animation:rise 2.4s linear infinite}
+@keyframes rise{from{transform:translateY(0);opacity:0}15%{opacity:1}to{transform:translateY(-150px);opacity:0}}
+.wave{animation:wave 3s ease-in-out infinite alternate}
+@keyframes wave{to{transform:translateX(-30px)}}
+.vapour{animation:steam 3s ease-out infinite}
+@keyframes steam{from{transform:translateY(0);opacity:.0}20%{opacity:.8}to{transform:translateY(-34px);opacity:0}}
+.prod rect{fill:#FFFFFF;stroke-width:2}
+/* story focus */
+svg.story .g{opacity:.13;transition:opacity .4s}
+svg.story .g.on{opacity:1}
+svg .g{transition:opacity .4s}
+svg.story .g.on .box,svg.story .g.on .shape{stroke:var(--ai);stroke-width:3;filter:url(#glow)}
+svg.solving .unit .box,svg.solving .unit .shape{animation:pulse 2.2s ease-in-out infinite}
+@keyframes pulse{0%,100%{stroke:#9DB5C1}50%{stroke:var(--ai);stroke-width:3}}
+svg.solving #g-liq .box{animation-delay:0s} svg.solving #g-tank .shape{animation-delay:.4s}
+svg.solving #g-comp .shape{animation-delay:.8s} svg.solving #g-nru .box{animation-delay:1.1s} svg.solving #g-hls .box{animation-delay:1.5s}
+
+.caption{margin-top:10px;background:#FFFFFF;box-shadow:0 4px 14px rgba(16,36,46,.12);border:1px solid var(--ai);border-radius:10px;
+  padding:12px 16px;display:none;gap:14px;align-items:center}
+.caption.show{display:flex}
+.caption .num{flex:none;width:34px;height:34px;border-radius:50%;background:var(--ai);color:#fff;font-weight:800;display:grid;place-items:center;font-size:17px}
+.caption .txt{flex:1;font-size:19px;line-height:1.35}
+.caption .txt b{color:var(--he)}
+.caption .nav{display:flex;gap:6px;flex:none}
+
+/* ---------- controls and results ---------- */
+.ctrl{display:grid;grid-template-columns:repeat(3,minmax(150px,1fr)) auto;gap:14px;align-items:end}
+label{display:block;font-size:13px;color:var(--ink2);margin-bottom:5px}
+input{width:100%;font:inherit;font-size:20px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:#FFFFFF;color:var(--ink);font-family:Consolas,monospace}
+input:focus{outline:2px solid var(--ai);border-color:var(--ai)}
+.range{font-size:12px;color:var(--ink3);margin-top:3px}
+.row2{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center}
+#status{font-size:15px;color:var(--ink2);margin-left:6px}
+#status b{color:var(--ai)}
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:14px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.kpi .k{font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink3);font-weight:600}
+.kpi .v{font-family:Consolas,monospace;font-size:28px;font-weight:700;margin:2px 0}
+.kpi .v small{font-size:14px;color:var(--ink3);font-weight:400;margin-left:4px}
+.kpi .d{font-size:13px;color:var(--ink2)}
+.note{border-radius:8px;padding:9px 12px;font-size:14px;margin-top:10px;background:#FFF4DE;border:1px solid #F0C46B;color:#6B4A00}
+.note.err{background:#FDE8E6;border-color:#F3B3AD;color:#8A1F14}
+.note.ok{background:#E3F3F1;border-color:var(--ai);color:#0E4B45}
+details summary{cursor:pointer;color:var(--ink2);font-size:14px}
+table{width:100%;border-collapse:collapse;font-size:14.5px;margin-top:10px}
+th,td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:right}
+th:first-child,td:first-child{text-align:left}
+th{font-size:12px;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em}
+td.num{font-family:Consolas,monospace} tr.sec td{color:var(--ink3);font-size:12.5px;text-transform:uppercase;letter-spacing:.05em;text-align:left;padding-top:12px}
+pre{background:#F1F5F7;color:#24414D;border-radius:8px;padding:10px 12px;font-size:12.5px;overflow:auto;margin:10px 0 0}
+.foot{font-size:12.5px;color:var(--ink3);margin-top:8px}
+.tabs{display:flex;gap:6px;margin:4px 0 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.tabs button{border:none;border-bottom:3px solid transparent;border-radius:8px 8px 0 0;background:transparent;color:var(--ink2);font-size:16px;font-weight:600;padding:10px 18px}
+.tabs button.on{color:var(--ink);border-bottom-color:var(--ai);background:var(--panel)}
+.tab{display:none} .tab.on{display:block}
+.fs{background:#fff;border-radius:10px;padding:8px;cursor:zoom-in} .fs img{width:100%;display:block}
+.fs.big{position:fixed;inset:10px;z-index:9;overflow:auto;cursor:zoom-out} .fs.big img{width:auto;max-width:none;height:auto}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+h2{font-size:19px;margin:0 0 4px} h3{font-size:15px;margin:14px 0 2px;color:var(--ink2);font-weight:600}
+.bars{display:grid;gap:14px;margin-top:8px}
+.bar .lab{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:5px}
+.bar .lab b{font-size:16px} .bar .lab span{font-size:13px;color:var(--ink2)}
+.bar .track{background:#E7EEF2;border-radius:8px;height:46px;overflow:hidden}
+.bar .fill{height:100%;border-radius:8px;display:flex;align-items:center;justify-content:flex-end;padding-right:12px;font-family:Consolas,monospace;font-weight:700;font-size:22px;color:#04231F;width:0;transition:width 1.4s cubic-bezier(.2,.8,.2,1)}
+.tag{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:20px;margin-left:6px;vertical-align:middle}
+.big3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
+.big3 .kpi .v{font-size:32px}
+td.hl{color:var(--ai);font-weight:700}
+.stepchip{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 10px;border-radius:20px;background:#E3F3F1;color:#0E6B62;margin-bottom:6px}
+.stepchip.next{background:#FFF4DE;color:#8A5A00}
+.opt3{display:grid;grid-template-columns:1.1fr 1fr 1.2fr;gap:12px;margin-top:12px}
+.ob{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--panel2)}
+.ob .oh{font-size:12px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ai);margin-bottom:6px}
+.ob .eq{font-family:Cambria,Georgia,serif;font-size:17px;line-height:1.5}
+.ob .od{font-size:12.5px;color:var(--ink2);margin-top:4px}
+.ob ul,.ob ol{margin:0;padding-left:20px;font-size:14px} .ob li{margin:3px 0}
+@media (max-width:900px){.opt3{grid-template-columns:1fr}}
+
+/* ---------- 3D plant ---------- */
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.seg button{border:none;border-radius:0;background:#fff;padding:8px 16px;font-weight:600;color:var(--ink2)}
+.seg button.on{background:var(--ai);color:#fff}
+.p3{height:min(68vh,640px);padding:0;overflow:hidden;position:relative;background:#E9F1F6}
+.p3-canvas,.p3-canvas canvas{position:absolute;inset:0;width:100%;height:100%}
+.p3-labels{position:absolute;inset:0;pointer-events:none}
+.lb{position:absolute;left:0;top:0;pointer-events:auto;cursor:pointer;background:rgba(255,255,255,.93);border:1px solid #C8D6DE;border-radius:9px;padding:4px 9px;
+  font-size:12px;white-space:nowrap;box-shadow:0 3px 10px rgba(16,36,46,.14);transition:opacity .3s}
+.lb::after{content:"";position:absolute;left:50%;bottom:-6px;width:1px;height:6px;background:#8AA0AC}
+.lb .ln{font-weight:700;color:var(--ink)} .lb .lv{color:var(--ink2);font-family:Consolas,monospace;font-size:12px} .lb .lv b{color:#B26A00}
+.lb.big{border-color:var(--ai)} .lb.big .ln{font-size:13.5px} .lb.he{border-color:var(--he)}
+.lb .up{color:#1E7A3A;font-weight:700} .lb .dn{color:#B3261E;font-weight:700}
+.lb.dim{opacity:.25}
+.p3-hud{position:absolute;left:14px;top:12px;background:rgba(255,255,255,.92);border-radius:10px;padding:8px 12px;box-shadow:0 3px 12px rgba(16,36,46,.12);font-size:13px;color:var(--ink2)}
+.p3-hud b{font-family:Consolas,monospace;font-size:21px;color:var(--ink)} .p3-hud .h2 b{color:#1E7A3A}
+.p3-bar{position:absolute;right:12px;top:12px;display:flex;gap:6px}
+.p3-bar button{background:rgba(255,255,255,.95);box-shadow:0 2px 8px rgba(16,36,46,.12)}
+.p3-hint{position:absolute;left:14px;bottom:10px;font-size:12px;color:var(--ink3);background:rgba(255,255,255,.75);padding:3px 8px;border-radius:6px}
+.p3-solve{position:absolute;left:50%;top:14px;transform:translateX(-50%);display:none;align-items:center;gap:10px;background:var(--ai);color:#fff;font-weight:700;padding:8px 16px;border-radius:20px;box-shadow:0 4px 14px rgba(18,150,139,.4)}
+.p3.solving .p3-solve{display:flex}
+.sp{width:16px;height:16px;border:3px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite}
+.p3-cap{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);width:min(860px,92%);display:none;gap:12px;align-items:center;background:#fff;border:1px solid var(--ai);border-radius:12px;padding:12px 14px;box-shadow:0 6px 22px rgba(16,36,46,.2)}
+.p3-cap.show{display:flex} .p3-cap .cn{flex:none;font-weight:800;color:#fff;background:var(--ai);border-radius:20px;padding:4px 10px;font-size:13px}
+.p3-cap .ct{flex:1;font-size:17px;line-height:1.4} .p3-cap .ct b{color:#B26A00} .p3-cap .nav{display:flex;gap:6px;flex:none}
+.p3-fallback{display:none;position:absolute;inset:0;padding:40px;text-align:center;color:var(--ink2)}
+/* ---------- results ---------- */
+.res-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin:6px 2px 10px}
+.ba{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:14px}
+.bac{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.bac .bk{font-size:13px;font-weight:700;color:var(--ink2)} .bac .bv{font-family:Consolas,monospace;font-size:26px;font-weight:700;margin:4px 0 2px}
+.bac .bv small{font-size:12.5px;color:var(--ink3);font-weight:400;margin-left:4px} .bac .bd{font-size:12.5px;color:var(--ink3);margin-bottom:6px}
+.bac .bd .ar{margin:0 5px;color:var(--ai)} .bac .bd b{color:var(--ink)}
+.chip{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:20px;font-family:Consolas,monospace}
+.chip.good{background:#E3F5E9;color:#1E7A3A} .chip.bad{background:#FDECEA;color:#B3261E} .chip.neu{background:#EEF2F5;color:var(--ink2)} .chip.same{background:#EEF2F5;color:var(--ink3)}
+.res3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.dn{display:flex;gap:12px;align-items:center} .dn canvas{flex:none} .lg{flex:1;font-size:13.5px}
+.lg .li{display:grid;grid-template-columns:12px 1fr auto auto;gap:3px 8px;align-items:center;padding:5px 0;border-bottom:1px solid var(--line);white-space:nowrap}
+.lg .li .chip{grid-column:2/5;justify-self:start} .sw{width:12px;height:12px;border-radius:3px} .lg .vv{font-family:Consolas,monospace;font-weight:700} .lg .sh{color:var(--ink3);font-size:12.5px}
+.meter{background:linear-gradient(160deg,#FFFFFF,#EAF7F1)}
+.m-big{font-family:Consolas,monospace;font-size:40px;font-weight:700;color:#1E7A3A;margin-top:6px} .m-big small{font-size:15px;color:var(--ink3);margin-left:6px;font-weight:400}
+.m-sub{font-size:13.5px;color:var(--ink2)}
+.m-odo{margin-top:14px;background:#10242E;color:#7CF2C0;border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center}
+.m-odo .ol{font-size:12px;color:#A9C4CF;text-transform:uppercase;letter-spacing:.06em} .m-odo .ov{font-family:Consolas,monospace;font-size:24px;font-weight:700}
+.m-flash{margin-top:10px;font-size:14px;font-weight:700} .m-flash .good{color:#1E7A3A} .m-flash .bad{color:#B3261E}
+.pc{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:6px}
+.pci{display:flex;gap:12px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--panel2)}
+.pi{font-size:38px} .pk{font-size:13px;font-weight:700;color:var(--ink2)} .pv{font-family:Consolas,monospace;font-size:22px;font-weight:700} .pe{font-size:13px;color:var(--ink2);margin:2px 0 5px}
+@media (max-width:1100px){.ba{grid-template-columns:repeat(3,1fr)}.res3,.pc{grid-template-columns:1fr}}
+.bac,.pci,.kpi,.res3>*,.grid2>*,.opt3>*,.ba>*,.cgrid>*{min-width:0} @media (max-width:640px){.panel table{display:block;overflow-x:auto}.dn{flex-direction:column;align-items:stretch}.dn canvas{align-self:center}.ba{grid-template-columns:repeat(2,minmax(0,1fr))}.bac .bv{font-size:21px}.tw-kpis,.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.to-row{grid-template-columns:1fr}.p3{height:62vh}}
+
+.lb{border-left:5px solid #8AA0AC}
+.lb.k-feed{border-left-color:#7895A8} .lb.k-liq{border-left-color:#1E9BD7} .lb.k-tank{border-left-color:#1E9BD7} .lb.k-ship{border-left-color:#C0392B}
+.lb.k-bog{border-left-color:#7B5CD6} .lb.k-nru,.lb.k-n2prod{border-left-color:#2E9E48} .lb.k-hls,.lb.k-heprod{border-left-color:#DB8500}
+.p3{background:#8CC8F0}
+.bac{border-top:5px solid var(--c,#12968B)} .bac .bk{color:var(--c)}
+.bac:nth-child(1){--c:#1E9BD7;background:linear-gradient(180deg,#EAF6FD,#fff 60%)} .bac:nth-child(2){--c:#DB8500;background:linear-gradient(180deg,#FFF4E0,#fff 60%)}
+.bac:nth-child(3){--c:#D6453A;background:linear-gradient(180deg,#FDECEA,#fff 60%)} .bac:nth-child(4){--c:#1E7A3A;background:linear-gradient(180deg,#E6F6EC,#fff 60%)}
+.bac:nth-child(5){--c:#5B7C99;background:linear-gradient(180deg,#EDF2F6,#fff 60%)} .bac:nth-child(6){--c:#12968B;background:linear-gradient(180deg,#E3F5F2,#fff 60%)}
+.pci:nth-child(1){background:linear-gradient(135deg,#E2F2FC,#fff);border-color:#9CD0EE} .pci:nth-child(2){background:linear-gradient(135deg,#FFF0D6,#fff);border-color:#F2C776}
+.pci:nth-child(3){background:linear-gradient(135deg,#E3F5E8,#fff);border-color:#9ED9B0}
+.tabs button.on{color:#fff;background:linear-gradient(135deg,#12968B,#1E9BD7);border-bottom-color:#0E6B62}
+header h1{background:linear-gradient(90deg,#0E6B62,#1E9BD7 55%,#DB8500);-webkit-background-clip:text;background-clip:text;color:transparent}
+.mini{font-size:13px;margin-top:2px} .mini th,.mini td{padding:3px 5px}
+.opt-ba{margin-top:0}
+.tradeoff{display:grid;gap:10px;margin-top:8px} .to-row{display:grid;grid-template-columns:200px 1fr 120px;gap:10px;align-items:center;font-size:14px}
+.to-bar{background:#EEF2F5;border-radius:6px;height:16px;overflow:hidden} .to-bar div{height:100%;border-radius:6px}
+.to-row b{font-family:Consolas,monospace;text-align:right} .to-row b.good{color:#1E7A3A} .to-row b.bad{color:#B3261E}
+.ck{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:12px}
+.ck .kpi .v{font-size:26px}
+.cgrid{display:grid;grid-template-columns:330px 1fr;gap:14px}
+.cl{max-height:640px;overflow:auto;padding:10px}
+.cl .cg{font-size:11.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ai);margin:10px 6px 4px}
+.cl .cf{padding:7px 9px;border-radius:8px;cursor:pointer;border:1px solid transparent}
+.cl .cf:hover{background:var(--panel2)} .cl .cf.on{background:#E3F3F1;border-color:var(--ai)}
+.cl .cf b{font-family:Consolas,monospace;font-size:13.5px} .cl .cf span{float:right;font-size:12px;color:var(--ink3)} .cl .cf div{font-size:12px;color:var(--ink2)}
+.cv{padding:0;overflow:hidden} .ch2{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:baseline} .ch2 b{font-family:Consolas,monospace} .ch2 span{font-size:13px;color:var(--ink2)}
+.cbox{display:flex;max-height:600px;overflow:auto;background:#0F2530}
+.cbox pre{margin:0;border-radius:0;padding:10px 12px;font-size:12.5px;line-height:1.5;background:transparent}
+#cgut{color:#5F7F8E;text-align:right;user-select:none;border-right:1px solid #24495A} #ctxt{color:#D7E6EC;flex:1}
+@media (max-width:900px){.cgrid{grid-template-columns:1fr}.ck{grid-template-columns:repeat(2,1fr)}}
+.pr-head{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px} .pr-head h3{margin:0} .pr-head button{margin-left:auto}
+.pr-tag{font-size:12px;font-weight:700;padding:2px 9px;border-radius:20px;background:#EEF2F5;color:var(--ink2)} .pr-tag.mod{background:#FFF4DE;color:#8A5A00}
+.pr-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px} .pr-grid input{font-size:18px}
+@media (max-width:900px){.pr-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.ov-hero{background:linear-gradient(135deg,#FFFFFF 0%,#EAF7F1 100%);border:2px solid var(--ai)}
+.ov-hero h2{font-size:24px;text-wrap:balance} .ov-hero h2 span{color:#1E7A3A}
+.ov-cards{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-top:14px}
+.ovc{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;min-width:0}
+.ovc.good{border:2px solid #1E7A3A;background:#F0FAF3}
+.ovc .k{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);font-weight:700}
+.ovc .v{font-family:Consolas,monospace;font-size:28px;font-weight:700;margin:4px 0 2px;font-variant-numeric:tabular-nums} .ovc.good .v{color:#1E7A3A}
+.ovc .v small{font-size:13px;color:var(--ink3);font-weight:400;margin-left:4px} .ovc .d{font-size:12.5px;color:var(--ink2)} .ovc .d b{color:#1E7A3A}
+.ol-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap} .ol-head>div:first-child{flex:1;min-width:260px}
+.ol-grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:16px;margin-top:12px}
+.ol-chart{min-width:0} .ol-chart canvas{width:100%;display:block} .ol-legend{display:flex;gap:16px;font-size:12.5px;color:var(--ink2);margin-top:4px;flex-wrap:wrap}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle} .dot.g{background:rgba(18,150,139,.7)} .dot.r{background:rgba(214,69,58,.8)} .ol-legend .goal{color:#1E7A3A;font-weight:700} .ol-legend .ln{background:none;border-top:2px dashed #1E7A3A;height:0} .dot.k{background:#26343C} .dot.o{background:transparent;border:2px solid #F2A33A;width:8px;height:8px}
+.ms{border:1px solid var(--line,#E3EAEE);border-radius:10px;padding:10px 12px;margin:10px 0;background:#FAFCFD}
+.ms-t{font-size:12px;font-weight:700;color:#35505E;margin-bottom:6px} .ms-r{display:grid;grid-template-columns:1fr auto;gap:2px 8px;font-size:12.5px;margin:5px 0}
+.ms-r b{font-variant-numeric:tabular-nums} .ms-r b.good{color:#1E7A3A} .ms-r b.warn{color:#B86E12} .ms-r.tot{border-top:1px solid #DDE5EA;padding-top:5px;font-weight:700}
+.ms-b{grid-column:1/3;height:7px;background:#EEF2F4;border-radius:4px;overflow:hidden} .ms-b i{display:block;height:100%;border-radius:4px}
+.ln{display:inline-block;width:18px;height:3px;background:#1E7A3A;margin-right:5px;vertical-align:middle;border-radius:2px}
+.ol-side{display:flex;flex-direction:column;gap:10px;min-width:0}
+.ol-count{display:flex;gap:6px;align-items:baseline;font-size:13px;color:var(--ink2)} .ol-count b{font-family:Consolas,monospace;font-size:22px;color:var(--ink)}
+.ol-big{border:1px solid #9ED9B0;background:#F0FAF3;border-radius:10px;padding:10px 12px}
+.ol-big .k{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);font-weight:700}
+.ol-big .v{font-family:Consolas,monospace;font-size:28px;font-weight:700;color:#1E7A3A} .ol-big .v small{font-size:13px;color:var(--ink3);font-weight:400;margin-left:4px}
+.ol-big .d{font-size:12.5px;color:var(--ink2)} .ol-big .d b.good,.good{color:#1E7A3A}
+.ol-cons{display:grid;gap:5px;font-size:13px} .ol-cons div{display:flex;align-items:center;gap:8px} .ol-cons b{margin-left:auto;font-family:Consolas,monospace}
+.ol-cons i{width:11px;height:11px;border-radius:50%;background:#B9C6CE;flex:none} .ol-cons .ok i{background:#2E9E48} .ol-cons .bad i{background:#D6453A}
+.ol-vars td.hl{color:var(--ai);font-weight:700}
+.of-ctl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:12px;align-items:end;margin-top:10px}
+.of-ctl input{font-size:18px} .of-btns{display:flex;gap:8px;flex-wrap:wrap}
+.of-status{margin-top:10px;font-size:14px;color:var(--ink2)} .of-status .bad,.bad{color:#B3261E}
+@media (max-width:900px){.ov-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.ol-grid,.of-ctl{grid-template-columns:minmax(0,1fr)}}
+.big-before-after{display:flex;gap:14px;align-items:stretch;margin-top:14px;flex-wrap:wrap}
+.bba{flex:1;min-width:180px;border:1px solid var(--line);border-radius:12px;padding:12px 16px;background:var(--panel)}
+.bba .k{font-size:12.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);font-weight:700}
+.bba .v{font-family:Consolas,monospace;font-size:40px;font-weight:700;font-variant-numeric:tabular-nums} .bba .v small{font-size:14px;color:var(--ink3);font-weight:400;margin-left:6px}
+.bba.good{border:2px solid #1E7A3A;background:#F0FAF3} .bba.good .v{color:#1E7A3A} .bba.gain{background:#1E7A3A;border-color:#1E7A3A} .bba.gain .k{color:#CFEFD9} .bba.gain .v,.bba.gain small{color:#fff!important}
+.bba-arrow{align-self:center;font-size:30px;color:var(--ai);font-weight:700}
+.ov-cards.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+.parts{margin-top:12px;font-size:13px;color:var(--ink2);display:flex;gap:8px;flex-wrap:wrap;align-items:center} .parts span{background:#E3F3F1;color:#0E6B62;border-radius:20px;padding:3px 10px;font-weight:600}
+.how{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:10px}
+.hw{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--panel2);display:flex;flex-direction:column;gap:4px}
+.hw .hn{width:30px;height:30px;border-radius:50%;background:var(--ai);color:#fff;font-weight:800;display:grid;place-items:center} .hw b{font-size:15.5px} .hw span{font-size:13.5px;color:var(--ink2)}
+.rules{margin-top:12px;border:1px solid #F0C46B;background:#FFF9EC;border-radius:12px;padding:10px 14px;font-size:14px} .rules ul{margin:6px 0 4px;padding-left:20px} .rules li{margin:3px 0}
+.now{display:flex;flex-direction:column;gap:2px;border:1px solid var(--line);border-radius:10px;padding:8px 12px} .now span{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);font-weight:700} .now b{font-size:15px}
+.ol-also{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+table.chg td,table.chg th{text-align:left;vertical-align:top} table.chg td.num{text-align:right;white-space:nowrap} table.chg td:last-child{color:var(--ink2);font-size:13.5px;max-width:420px}
+details.tech>summary{font-size:15px;padding:4px 0} details.tech[open]>summary{margin-bottom:12px}
+details.tech>section.panel{border:1px solid var(--line)}
+@media (max-width:900px){.how,.ov-cards.three{grid-template-columns:minmax(0,1fr)}.bba-arrow{display:none}}
+@media (max-width:900px){.grid2,.big3{grid-template-columns:1fr}}
+@media (max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}.ctrl{grid-template-columns:1fr}}
+
+.fh{font-size:15px;margin:18px 0 6px;color:var(--ink)}
+svg.fig{width:100%;height:auto;display:block;font-family:Segoe UI,Arial}
+svg.fig .gl{stroke:#E6ECEF} svg.fig .ax{font-size:11px;fill:#6B8592} svg.fig .xl{font-size:11px;fill:#35505E} svg.fig .tt{font-size:13px;font-weight:700;fill:#26343C}
+svg.fig .vl{font-size:12px;font-weight:700} svg.fig .cn{stroke:#9DB5C1;stroke-dasharray:3 3}
+svg.fig .wb{fill:#8FA3AE} svg.fig .we{fill:#1E7A3A} svg.fig .wu{fill:#2E9E5B} svg.fig .wd{fill:#E59A3A}
+svg.fig .wbt{fill:#4A5F6A} svg.fig .wet{fill:#1E7A3A} svg.fig .wut{fill:#1E7A3A} svg.fig .wdt{fill:#B86E12}
+svg.fig .hot{fill:none;stroke:#D6453A;stroke-width:2.4} svg.fig .cold{fill:none;stroke:#2F7FD0;stroke-width:2.4} svg.fig .gap{fill:rgba(242,163,58,.28)}
+svg.fig .bl{font-size:12px;font-weight:700;fill:#B86E12}
+.cc-key{display:flex;gap:18px;flex-wrap:wrap;font-size:12.5px;color:var(--ink2);margin:4px 0} .cc-key i{display:inline-block;width:18px;height:4px;margin-right:6px;vertical-align:middle;border-radius:2px}
+.cc-key i.h{background:#D6453A} .cc-key i.c{background:#2F7FD0} .cc-key i.g{background:rgba(242,163,58,.5);height:10px}
+.lb-box{min-height:120px} .lb-key{display:flex;gap:18px;font-size:12.5px;color:var(--ink2);margin:2px 0 8px} .lb-key i{display:inline-block;width:14px;height:10px;border-radius:2px;margin-right:6px;vertical-align:middle}
+.lb-key i.m,.lb-bar i.m{background:#A9B8C0} .lb-key i.o,.lb-bar i.o{background:#2E9E5B}
+.lb-row{margin:10px 0} .lb-l{font-size:13px;font-weight:600;color:#26343C;margin-bottom:4px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.lb-ch{font-size:12px;font-weight:700;border-radius:10px;padding:1px 8px} .lb-ch.up{background:#E4F4EA;color:#1E7A3A} .lb-ch.dn{background:#FCEEDD;color:#B86E12} .lb-ch.same{background:#EEF2F4;color:#6B8592}
+.lb-bar{position:relative;height:20px;margin:3px 0;background:#F3F6F8;border-radius:4px} .lb-bar i{position:absolute;left:0;top:0;bottom:0;border-radius:4px;transition:width .25s}
+.lb-bar span{position:absolute;left:8px;top:2px;font-size:12px;font-weight:700;color:#14232B;font-variant-numeric:tabular-nums}
+.lb-row.tot{border-top:1px solid #DDE5EA;padding-top:8px} .lb-gain{position:relative;height:28px;background:#EEF6F1;border-radius:5px} .lb-gain i{position:absolute;left:0;top:0;bottom:0;background:#1E7A3A;border-radius:5px;transition:width .25s}
+.lb-gain b{position:absolute;left:10px;top:4px;color:#fff;font-size:15px;text-shadow:0 0 3px rgba(0,0,0,.35)} .lb-foot{font-size:12px;color:var(--ink2);margin-top:8px}
+.pw-row{display:grid;grid-template-columns:200px minmax(0,1fr) 92px;gap:10px;align-items:center;margin:6px 0} .pw-l{font-size:13px;font-weight:600;color:#26343C}
+.pw-d{font-size:12.5px;font-weight:700;text-align:right} .pw-d.up{color:#1E7A3A} .pw-d.dn{color:#B86E12} .pw-d.same{color:#9DB5C1} .pw-row.tot{border-top:1px solid #DDE5EA;padding-top:6px}
+@media (max-width:700px){.pw-row{grid-template-columns:minmax(0,1fr) 80px}.pw-b{grid-column:1/3;grid-row:2}}
+
+.prob{display:grid;grid-template-columns:1fr 1.25fr 1.1fr;gap:12px;margin-top:10px}
+.pb{border:1px solid #DDE5EA;border-radius:10px;padding:12px 14px;background:#FAFCFD;font-size:13px}
+.pb.obj{background:#EEF7F4;border-color:#BFE0D6} .ph{font-weight:800;color:#0F5E57;font-size:13.5px;margin-bottom:6px;text-transform:uppercase;letter-spacing:.03em}
+.pb .eq{font-size:19px;font-weight:800;color:#14232B;margin:4px 0} .pb .eq2{font-size:13.5px;color:#26343C;margin-bottom:8px}
+.pb ul{margin:4px 0 8px 18px;padding:0} .pb li{margin:3px 0} .vh{font-weight:700;color:#12968B;margin-top:6px}
+.ph2{font-weight:800;color:#0F5E57;font-size:13.5px;margin:16px 0 6px;text-transform:uppercase;letter-spacing:.03em}
+details.more > summary{font-size:15px;cursor:pointer;padding:4px 0}
+@media (max-width:900px){.prob{grid-template-columns:1fr}}
+
+.rcheck{border:1px solid #F0D9B5;background:#FFF9F0;border-radius:10px;padding:12px 14px;margin:14px 0;font-size:13px}
+.rcheck ul{margin:4px 0 4px 18px;padding:0} .rcheck li{margin:4px 0} .rcheck table.mini{max-width:520px;margin:4px 0 8px}
+
+.fsgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:14px;align-items:start}
+.fsh{font-weight:700;color:#0F5E57;margin:0 0 6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px}
+.fstog button{font-size:12px;padding:4px 10px;border:1px solid #BFD3DA;background:#fff;border-radius:14px;cursor:pointer;margin-left:4px}
+.fstog button.on{background:#12968B;color:#fff;border-color:#12968B}
+table.cmp{border-collapse:collapse;width:100%;font-size:12.5px} table.cmp th{background:#0F5E57;color:#fff;padding:5px 8px;font-weight:600;border:1px solid #2A7A72}
+table.cmp td{text-align:left;padding:5px 8px;border-bottom:1px solid #E3EAEE;vertical-align:top} table.cmp td.num{text-align:right;font-family:Consolas,monospace;white-space:nowrap}
+table.cmp td.ai{color:#1F6FB2} table.cmp tr.ok td:first-child{border-left:3px solid #2E9E5B} table.cmp .sid{font-size:11px;color:#8FA3AE}
+table.cmp b.good{color:#1E7A3A}
+@media (max-width:900px){.fsgrid{grid-template-columns:1fr}}
+
+ol.chk{margin:6px 0 4px 20px;padding:0;font-size:13.5px} ol.chk li{margin:6px 0} ol.chk code,.hw code{background:#EEF2F4;padding:1px 5px;border-radius:4px;font-size:12px}
+table.cmp.lft th{text-align:left}
+</style></head><body><main>
+
+<header>
+  <div>
+    <div class="eyebrow">LBNH Process Twin · Ripa Sutar · INEN 6301 · Lamar University</div>
+    <h1>LNG + helium plant: live simulator</h1>
+    <div class="sub">My LNG + helium plant from Aspen Plus, and an AI-written Python model that re-solves it when the feed changes.</div>
+  </div>
+</header>
+<nav class="tabs">
+  <button class="on" data-tab="live">1 · Live simulator</button>
+  <button data-tab="aspen">2 · My Aspen model</button>
+  <button data-tab="code">3 · Python code</button>
+</nav>
+
+<div class="tab on" id="tab-live">
+<div class="tools" style="justify-content:space-between;margin-bottom:10px">
+  <div class="sub"><b>My Aspen design.</b> Change the feed or its composition and the AI simulator solves the whole plant again, with no Aspen Plus.</div>
+  <div class="tools">
+    <div class="seg"><button class="on" id="v3d">3D plant</button><button id="v2d">Flow diagram</button></div>
+    <button class="play" id="play">▶ Guided tour</button>
+  </div>
+</div>
+
+<section class="panel p3" id="p3">
+  <div class="p3-canvas"></div>
+  <div class="p3-labels"></div>
+  <div class="p3-hud">
+    <div class="h1">Total power <b id="h-pow">332.5</b> MW</div>
+    <div class="h2">Profit <b>$<span id="h-prof">806</span> M</b> / yr</div>
+  </div>
+  <div class="p3-bar"><button data-a="overview">Overview</button><button data-a="tour">▶ Tour</button><button data-a="rotate">⟳ Rotate</button></div>
+  <div class="p3-hint">Drag to rotate · scroll to zoom · click a label to fly there</div>
+  <div class="p3-solve"><div class="sp"></div>Solving the whole plant…</div>
+  <div class="p3-cap"><div class="cn">1</div><div class="ct"></div><div class="nav"><button class="pv">◀</button><button class="nx">▶</button><button class="cx">✕</button></div></div>
+  <div class="p3-fallback">3D needs WebGL, which this browser has turned off. Use the Flow diagram view.</div>
+</section>
+
+<section class="panel" id="diagPanel" style="display:none">
+<svg id="pfd" viewBox="0 0 1200 455" aria-label="Animated flow diagram of the LNG and helium plant">
+  <defs>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <clipPath id="tankClip"><rect x="502" y="100" width="136" height="140" rx="10"/></clipPath>
+    <clipPath id="nruClip"><rect x="862" y="82" width="86" height="186" rx="12"/></clipPath>
+    <linearGradient id="lngFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4FC3F7" stop-opacity=".95"/><stop offset="1" stop-color="#1A6FA0" stop-opacity=".95"/></linearGradient>
+    <symbol id="flake" viewBox="-12 -12 24 24"><g stroke="#1E9BD7" stroke-width="2" stroke-linecap="round" fill="none">
+      <path d="M0-11V11M-9.5-5.5L9.5 5.5M-9.5 5.5L9.5-5.5"/><path d="M-3-8L0-5L3-8M-3 8L0 5L3 8"/></g></symbol>
+  </defs>
+
+  <!-- ===== pipes (drawn first, under the units) ===== -->
+  <g class="g" id="p-feed"><path class="pipe-bg" d="M170 170H230" stroke="var(--gas)" stroke-width="14"/><path class="pipe" d="M170 170H230" stroke="var(--gas)" stroke-width="6"/></g>
+  <g class="g" id="p-lng"><path class="pipe-bg" d="M430 170H500" stroke="var(--lng)" stroke-width="14"/><path class="pipe" d="M430 170H500" stroke="var(--lng)" stroke-width="6"/></g>
+  <g class="g" id="p-lngout"><path class="pipe-bg" d="M570 245V318" stroke="var(--lng)" stroke-width="14"/><path class="pipe" d="M570 245V318" stroke="var(--lng)" stroke-width="6"/></g>
+  <g class="g" id="p-bog"><path class="pipe-bg" d="M570 96V52H760V140" stroke="var(--bog)" stroke-width="12"/><path class="pipe" d="M570 96V52H760V140" stroke="var(--bog)" stroke-width="5"/></g>
+  <g class="g" id="p-bog2"><path class="pipe-bg" d="M790 170H860" stroke="var(--bog)" stroke-width="12"/><path class="pipe" d="M790 170H860" stroke="var(--bog)" stroke-width="5"/></g>
+  <g class="g" id="p-n2"><path class="pipe-bg" d="M905 270V318" stroke="var(--n2)" stroke-width="12"/><path class="pipe" d="M905 270V318" stroke="var(--n2)" stroke-width="5"/></g>
+  <g class="g" id="p-he"><path class="pipe-bg" d="M950 118H1010" stroke="var(--he)" stroke-width="10"/><path class="pipe" d="M950 118H1010" stroke="var(--he)" stroke-width="4"/></g>
+  <g class="g" id="p-lhe"><path class="pipe-bg" d="M1095 205V318" stroke="var(--he)" stroke-width="10"/><path class="pipe" d="M1095 205V318" stroke="var(--he)" stroke-width="4"/></g>
+
+  <!-- boil-off label -->
+  <g class="g" id="l-bog">
+    <text x="665" y="40" text-anchor="middle" class="lbl" fill="var(--bog)">Boil-off gas <tspan class="mono" id="v-bog">64.2</tspan> t/h</text>
+    <text x="665" y="76" text-anchor="middle" class="lbl" fill="var(--he)">helium <tspan class="mono" id="v-boghe">1.28</tspan> wt %</text>
+  </g>
+
+  <!-- ===== feed ===== -->
+  <g class="g unit" id="g-feed">
+    <rect class="box" x="20" y="118" width="150" height="104" rx="12"/>
+    <circle cx="48" cy="146" r="10" fill="none" stroke="var(--gas)" stroke-width="2.5"/><path d="M42 146h12M48 140v12" stroke="var(--gas)" stroke-width="2"/>
+    <text x="64" y="151" class="t-name">Natural gas</text>
+    <text x="34" y="182" class="t-val"><tspan id="v-feed">600</tspan><tspan class="t-small" dx="5">t/h</tspan></text>
+    <text x="34" y="206" class="t-small">helium <tspan id="v-feedhe">0.14</tspan> wt %</text>
+  </g>
+
+  <!-- ===== 1 liquefaction ===== -->
+  <g class="g unit" id="g-liq">
+    <rect class="box" x="230" y="100" width="200" height="140" rx="12"/>
+    <g class="badge"><circle cx="230" cy="100" r="13"/><text x="230" y="105" text-anchor="middle">1</text></g>
+    <text x="330" y="126" text-anchor="middle" class="t-name">LNG liquefaction</text>
+    <text x="330" y="144" text-anchor="middle" class="t-small">propane + mixed refrigerant</text>
+    <path d="M262 168l12-10 12 10 12-10 12 10 12-10 12 10 12-10 12 10 12-10" fill="none" stroke="var(--lng)" stroke-width="3" stroke-linejoin="round"/>
+    <g transform="translate(402,158) scale(1.15)"><g class="spin"><path d="M0-11V11M-9.5-5.5L9.5 5.5M-9.5 5.5L9.5-5.5M-3-8L0-5L3-8M-3 8L0 5L3 8" stroke="#1E9BD7" stroke-width="2" stroke-linecap="round" fill="none"/></g></g>
+    <text x="330" y="212" text-anchor="middle" class="t-small">to about −162 °C</text>
+    <text x="330" y="232" text-anchor="middle" class="t-pow"><tspan id="v-pLNGP">261.1</tspan> MW <tspan class="delta" id="d-pLNGP"></tspan></text>
+  </g>
+
+  <!-- ===== 2 tank ===== -->
+  <g class="g unit" id="g-tank">
+    <rect class="shape" x="500" y="96" width="140" height="149" rx="14"/>
+    <g clip-path="url(#tankClip)">
+      <g class="wave"><path d="M480 150q20-8 40 0t40 0 40 0 40 0 40 0 40 0V250H480z" fill="url(#lngFill)"/></g>
+    </g>
+    <circle class="vapour" cx="545" cy="140" r="4" fill="var(--bog)"/><circle class="vapour" cx="590" cy="142" r="3.5" fill="var(--bog)" style="animation-delay:1s"/><circle class="vapour" cx="615" cy="141" r="3" fill="var(--bog)" style="animation-delay:2s"/>
+    <g class="badge"><circle cx="500" cy="96" r="13"/><text x="500" y="101" text-anchor="middle">2</text></g>
+    <text x="570" y="122" text-anchor="middle" class="t-name">LNG tank</text>
+    <text x="570" y="195" text-anchor="middle" class="t-small" style="fill:#DFF4FF!important">LNG</text>
+  </g>
+
+  <!-- ===== BOG compressor ===== -->
+  <g class="g unit" id="g-comp">
+    <circle class="shape" cx="760" cy="170" r="30"/>
+    <g class="rotor"><path d="M760 148l9 22-9 22-9-22z" fill="var(--bog)" opacity=".85"/><path d="M738 170l22-9 22 9-22 9z" fill="var(--bog)" opacity=".55"/></g>
+    <text x="760" y="222" text-anchor="middle" class="t-small">compressor</text>
+    <text x="760" y="240" text-anchor="middle" class="t-pow"><tspan id="v-pBOGC">0.8</tspan> MW <tspan class="delta" id="d-pBOGC"></tspan></text>
+  </g>
+
+  <!-- ===== 3 nitrogen rejection ===== -->
+  <g class="g unit" id="g-nru">
+    <rect class="box" x="860" y="80" width="90" height="190" rx="14"/>
+    <g clip-path="url(#nruClip)" stroke="#9DB5C1" stroke-width="2">
+      <path d="M866 112h78M866 140h78M866 168h78M866 196h78M866 224h78M866 252h78"/>
+    </g>
+    <g clip-path="url(#nruClip)" fill="var(--n2)">
+      <circle class="bubble" cx="882" cy="262" r="3"/><circle class="bubble" cx="905" cy="262" r="3" style="animation-delay:.8s"/><circle class="bubble" cx="928" cy="262" r="3" style="animation-delay:1.6s"/>
+    </g>
+    <g class="badge"><circle cx="860" cy="80" r="13"/><text x="860" y="85" text-anchor="middle">3</text></g>
+    <text x="922" y="70" text-anchor="middle" class="t-name">N₂ rejection</text>
+    <text x="958" y="250" class="t-pow"><tspan id="v-pNRHR">67.2</tspan> MW</text>
+    <text x="958" y="268" class="delta" id="d-pNRHR"></text>
+  </g>
+
+  <!-- ===== 4 helium liquefier ===== -->
+  <g class="g unit" id="g-hls">
+    <rect class="box" x="1010" y="80" width="170" height="125" rx="12"/>
+    <g class="badge"><circle cx="1010" cy="80" r="13"/><text x="1010" y="85" text-anchor="middle">4</text></g>
+    <text x="1095" y="106" text-anchor="middle" class="t-name">Helium liquefier</text>
+    <g transform="translate(1043,133) scale(1.3)"><g class="spin"><path d="M0-11V11M-9.5-5.5L9.5 5.5M-9.5 5.5L9.5-5.5M-3-8L0-5L3-8M-3 8L0 5L3 8" stroke="#1E9BD7" stroke-width="2" stroke-linecap="round" fill="none"/></g></g>
+    <g transform="translate(1147,133) scale(1.3)"><g class="spin" style="animation-direction:reverse"><path d="M0-11V11M-9.5-5.5L9.5 5.5M-9.5 5.5L9.5-5.5M-3-8L0-5L3-8M-3 8L0 5L3 8" stroke="#1E9BD7" stroke-width="2" stroke-linecap="round" fill="none"/></g></g>
+    <text x="1095" y="140" text-anchor="middle" class="t-small">to −269 °C</text>
+    <text x="1095" y="174" text-anchor="middle" class="t-pow"><tspan id="v-pHLS">3.5</tspan> MW</text>
+    <text x="1095" y="194" text-anchor="middle" class="delta" id="d-pHLS"></text>
+  </g>
+
+  <!-- ===== products ===== -->
+  <g class="g prod" id="g-prod">
+    <g id="pr-lng"><rect x="480" y="318" width="180" height="78" rx="12" stroke="var(--lng)"/>
+      <text x="570" y="342" text-anchor="middle" class="lbl" fill="var(--lng)">LNG to market</text>
+      <text x="570" y="372" text-anchor="middle" class="t-val" fill="#10242E"><tspan id="v-lng">541.4</tspan><tspan class="t-small" dx="5">t/h</tspan></text>
+      <text x="570" y="390" text-anchor="middle" class="delta" id="d-lng"></text></g>
+    <g id="pr-n2"><rect x="815" y="318" width="180" height="78" rx="12" stroke="var(--n2)"/>
+      <text x="905" y="342" text-anchor="middle" class="lbl" fill="var(--n2)">Nitrogen</text>
+      <text x="905" y="372" text-anchor="middle" class="t-val" fill="#10242E"><tspan id="v-n2">30.9</tspan><tspan class="t-small" dx="5">t/h</tspan></text>
+      <text x="905" y="390" text-anchor="middle" class="delta" id="d-n2"></text></g>
+    <g id="pr-he"><rect x="1005" y="318" width="180" height="78" rx="12" stroke="var(--he)" style="filter:url(#glow)"/>
+      <text x="1095" y="342" text-anchor="middle" class="lbl" fill="var(--he)">Liquid helium</text>
+      <text x="1095" y="372" text-anchor="middle" class="t-val" fill="#10242E"><tspan id="v-he">820</tspan><tspan class="t-small" dx="5">kg/h</tspan></text>
+      <text x="1095" y="390" text-anchor="middle" class="delta" id="d-he"></text></g>
+    <text x="570" y="420" text-anchor="middle" class="lbl" fill="var(--ink2)">$<tspan class="mono" id="v-rlng">1,487</tspan> M / year</text>
+    <text x="905" y="420" text-anchor="middle" class="lbl" fill="var(--ink2)">$<tspan class="mono" id="v-rn2">33</tspan> M / year</text>
+    <text x="1095" y="420" text-anchor="middle" class="lbl" fill="var(--he)">$<tspan class="mono" id="v-rhe">685</tspan> M / year · <tspan id="v-share">31</tspan> % of revenue</text>
+  </g>
+
+  <!-- total power -->
+  <g id="g-total">
+    <text x="30" y="330" class="t-small">Total power, whole plant</text>
+    <text x="30" y="368" class="t-val" style="font-size:34px" fill="#B26A00"><tspan id="v-total">332.5</tspan><tspan class="t-small" dx="6">MW</tspan></text>
+    <text x="30" y="392" class="delta" id="d-total"></text>
+  </g>
+</svg>
+<div class="caption" id="caption"><div class="num" id="capNum">1</div><div class="txt" id="capTxt"></div>
+  <div class="nav"><button id="prev">◀</button><button id="next">▶</button><button id="stop">✕</button></div></div>
+</section>
+
+<section class="panel">
+  <div class="ctrl">
+    <div><label for="flow">Feed flow, t/h</label><input id="flow" type="number" step="10" value="600"><div class="range">tested 300 to 900</div></div>
+    <div><label for="he">Helium in the feed, wt %</label><input id="he" type="number" step="0.01" value="__HE__"><div class="range">tested 0.05 to 0.40</div></div>
+    <div><label for="n2">Nitrogen in the feed, wt %</label><input id="n2" type="number" step="0.1" value="__N2__"><div class="range">tested 4 to 13</div></div>
+    <div><button class="go" id="go">Solve</button></div>
+  </div>
+  <div class="row2">
+    <span style="font-size:13px;color:var(--ink3)">Try:</span>
+    <button data-p="600,__HE__,__N2__">Design feed</button>
+    <button data-p="660,__HE__,__N2__">10 % more feed</button>
+    <button data-p="480,__HE__,__N2__">20 % less feed</button>
+    <button data-p="600,0.28,__N2__">Double the helium</button>
+    <span id="status">Showing the design feed.</span>
+  </div>
+  <div id="msg"></div>
+</section>
+
+<section class="panel prices">
+  <div class="pr-head"><h3 class="ch">Prices</h3><span class="pr-tag" id="pr-tag">paper prices</span>
+    <span class="sub" style="font-size:13px">Change any price: revenue, cost and profit recalculate at once, no solve needed.</span>
+    <button id="pr-reset">Paper prices</button></div>
+  <div class="pr-grid">
+    <div><label for="price-lng">LNG, $/t</label><input id="price-lng" type="number" step="5" value="330"><div class="range" id="price-lng-m">≈ $6.3 / MMBtu</div></div>
+    <div><label for="price-he">Liquid helium, $/kg</label><input id="price-he" type="number" step="5" value="100"><div class="range">paper: $100/kg</div></div>
+    <div><label for="price-n2">Nitrogen, $/t</label><input id="price-n2" type="number" step="5" value="130"><div class="range">paper: $130/t</div></div>
+    <div><label for="price-feed">Feed natural gas, $/t</label><input id="price-feed" type="number" step="5" value="180"><div class="range" id="price-feed-m">≈ $3.5 / MMBtu</div></div>
+    <div><label for="price-el">Electricity, $/kWh</label><input id="price-el" type="number" step="0.005" value="0.0775"><div class="range">paper: $0.0775/kWh</div></div>
+  </div>
+</section>
+
+<div class="res-head"><h2 id="res-title">Results at the design feed (my Aspen design)</h2><span id="res-sub" class="sub">Change the feed above and press Solve: every number below is recalculated.</span></div>
+<div class="ba" id="ba"></div>
+
+<div class="res3">
+  <section class="panel"><h3 class="ch">Where the revenue comes from</h3>
+    <div class="dn"><canvas id="c-rev" width="190" height="190"></canvas><div class="lg" id="lg-rev"></div></div></section>
+  <section class="panel"><h3 class="ch">Where the operating cost goes</h3>
+    <div class="dn"><canvas id="c-cost" width="190" height="190"></canvas><div class="lg" id="lg-cost"></div></div></section>
+  <section class="panel meter"><h3 class="ch">Profit</h3>
+    <div class="m-big">$<span id="m-day">0</span><small>k / day</small></div>
+    <div class="m-sub">$<span id="m-hour">0</span> per hour · $<span id="m-yr">0</span> M per year</div>
+    <div class="m-flash" id="m-flash"></div>
+  </section>
+</div>
+
+<section class="panel"><h3 class="ch">What the plant ships every day</h3>
+  <div class="pc" id="pc"></div>
+  <div class="foot">Assumed sizes: LNG carrier cargo about 76,000 t (170,000 m³); liquid-helium ISO container about 5 t (41,000 L); nitrogen road tanker 20 t. 8,322 operating hours per year, as in the paper.</div>
+</section>
+
+<section class="panel">
+  <details id="det"><summary>Show the full comparison table</summary><div id="detail"><p class="foot">Press Solve to see the table.</p></div></details>
+  <div class="foot">Design feed = my Aspen Plus results. For a new feed, the AI simulator re-solves the whole plant (all four sections and the boil-off recycle), and the change it finds is applied to my Aspen design. Profit is first-year revenue minus operating cost, before tax, on the cost basis of the published paper.</div>
+</section>
+</div>
+
+<!-- ================= TAB 2: ASPEN ================= -->
+<div class="tab" id="tab-aspen">
+<section class="panel">
+  <h2>Aspen flowsheet vs Python flowsheet</h2>
+  <div class="sub" style="margin-bottom:10px">Left: my Aspen Plus model. Right: the flowsheet generated from the AI simulator's Python code, with numbered streams. Click a picture to enlarge.</div>
+  <div class="fsgrid">
+    <div><div class="fsh">Aspen Plus (my model)</div><div class="fs"><img src="/aspen_flowsheet.jpg" alt="Aspen Plus flowsheet of the LNG and helium plant"></div></div>
+    <div><div class="fsh">Python (AI simulator) <span class="fstog"><button class="on" data-pfd="my_design">My design</button></span></div>
+      <div class="fs"><img id="pfdimg" src="/flowsheet/PFD_my_design.jpg" alt="Process flow diagram generated from the Python simulator"></div>
+      <div class="foot" id="pfdnote">My design on the Aspen settings: total power 329.9 MW (Aspen 332.5 MW).</div></div>
+  </div>
+  <h3 class="fh">Same streams in both models</h3>
+  <div class="sub" style="margin-bottom:6px">Aspen values in black, Python values in blue. Feed 600 t/h, my design.</div>
+  <div style="overflow-x:auto"><table class="cmp"><thead><tr><th rowspan="2">Stream</th><th rowspan="2">Section</th><th colspan="2">Temperature, °C</th><th colspan="2">Pressure, bar</th><th colspan="2">Flow, t/h</th><th rowspan="2">Comment</th></tr>
+  <tr><th>Aspen</th><th>Python</th><th>Aspen</th><th>Python</th><th>Aspen</th><th>Python</th></tr></thead><tbody>
+<tr class="ok"><td>Natural gas feed<div class='sid'>NG ↔ S1</div></td><td>LNG</td><td class=num>25.0</td><td class='num ai'>25.0</td><td class=num>50.00</td><td class='num ai'>50.00</td><td class=num>600.0</td><td class='num ai'>600.0</td><td><b class=good>✓</b> matches</td></tr>
+<tr class="ok"><td>Heavy hydrocarbons removed<div class='sid'>HEAVY-HC ↔ S3</div></td><td>LNG</td><td class=num>-2.2</td><td class='num ai'>-2.2</td><td class=num>49.70</td><td class='num ai'>49.70</td><td class=num>29.9</td><td class='num ai'>29.9</td><td><b class=good>✓</b> matches</td></tr>
+<tr class="ok"><td>Treated gas to main exchanger<div class='sid'>PURE-NG ↔ S2</div></td><td>LNG</td><td class=num>-34.0</td><td class='num ai'>-34.0</td><td class=num>49.60</td><td class='num ai'>49.60</td><td class=num>570.1</td><td class='num ai'>570.1</td><td><b class=good>✓</b> matches</td></tr>
+<tr class="ok"><td>LNG leaving main exchanger<div class='sid'>LNG ↔ S4</div></td><td>LNG</td><td class=num>-152.0</td><td class='num ai'>-152.0</td><td class=num>49.00</td><td class='num ai'>49.60</td><td class=num>570.1</td><td class='num ai'>570.1</td><td><b class=good>✓</b> matches</td></tr>
+<tr class="ok"><td>MR vapour to MR compressor<div class='sid'>MR-O-MCX ↔ S5</div></td><td>LNG</td><td class=num>-47.3</td><td class='num ai'>-47.3</td><td class=num>1.20</td><td class='num ai'>1.20</td><td class=num>1,408.0</td><td class='num ai'>1,365.9</td><td><b class=good>✓</b> MR flow 3 % lower: the AI model sizes it from the exchanger energy balance</td></tr>
+<tr class="ok"><td>MR after compressor + cooler<div class='sid'>MR-O-CL3 ↔ S6</div></td><td>LNG</td><td class=num>40.0</td><td class='num ai'>40.0</td><td class=num>41.99</td><td class='num ai'>42.00</td><td class=num>1,408.0</td><td class='num ai'>1,365.9</td><td><b class=good>✓</b> matches</td></tr>
+<tr class="ok"><td>MR after propane pre-cooling<div class='sid'>MR-O-X22 ↔ S7</div></td><td>LNG</td><td class=num>-34.0</td><td class='num ai'>-34.0</td><td class=num>41.69</td><td class='num ai'>41.69</td><td class=num>1,408.0</td><td class='num ai'>1,365.9</td><td><b class=good>✓</b> matches</td></tr>
+<tr class=""><td>End-flash vapour<div class='sid'>FBOG ↔ S10</div></td><td>Storage</td><td class=num>-164.3</td><td class='num ai'>-164.1</td><td class=num>1.30</td><td class='num ai'>1.20</td><td class=num>59.0</td><td class='num ai'>76.1</td><td>Aspen pumps the LNG and flashes at 1.3 bar; Python flashes straight to 1.2 bar</td></tr>
+<tr class=""><td>LNG after end flash<div class='sid'>LNG--FLS ↔ S11</div></td><td>Storage</td><td class=num>-164.3</td><td class='num ai'>-164.1</td><td class=num>1.30</td><td class='num ai'>1.20</td><td class=num>511.1</td><td class='num ai'>494.0</td><td>same reason: a little more flash gas in Python</td></tr>
+<tr class=""><td>Tank boil-off<div class='sid'>TBOG ↔ S12</div></td><td>Storage</td><td class=num>-163.2</td><td class='num ai'>-163.8</td><td class=num>1.30</td><td class='num ai'>1.20</td><td class=num>5.25</td><td class='num ai'>0.01</td><td>Aspen includes pump and heat-leak vapour; Python only the tank heat leak (0.05 %/day)</td></tr>
+<tr class=""><td>Total BOG to the NRHR<div class='sid'>BOG-FTJ1 ↔ S16</div></td><td>Storage</td><td class=num>-142.8</td><td class='num ai'>30.0</td><td class=num>2.13</td><td class='num ai'>1.20</td><td class=num>64.2</td><td class='num ai'>77.3</td><td>Aspen keeps the BOG cold; Python warms it to 30 °C before the compressor</td></tr>
+<tr class=""><td>Methane returned to LNG<div class='sid'>METHANE ↔ S14</div></td><td>NRHR</td><td class=num>-166.5</td><td class='num ai'>-160.7</td><td class=num>1.50</td><td class='num ai'>1.20</td><td class=num>32.5</td><td class='num ai'>42.4</td><td>different rich-LNG return layout in the two models</td></tr>
+<tr class=""><td>Nitrogen product<div class='sid'>N2PROD ↔ S32</div></td><td>NRHR</td><td class=num>22.7</td><td class='num ai'>-193.1</td><td class=num>1.40</td><td class='num ai'>1.30</td><td class=num>30.9</td><td class='num ai'>32.7</td><td>Aspen warms the nitrogen to ambient; Python reports it at the cold-box outlet</td></tr>
+<tr class=""><td>Helium product gas<div class='sid'>HELIUM ↔ S29</div></td><td>NRHR</td><td class=num>-229.0</td><td class='num ai'>-203.1</td><td class=num>1.40</td><td class='num ai'>25.00</td><td class=num>0.83</td><td class='num ai'>0.80</td><td>different helium purification layout (Aspen 1.4 bar, Python at column pressure)</td></tr>
+<tr class="ok"><td>Liquid helium product<div class='sid'>LIQ-HE ↔ S31</div></td><td>HLS</td><td class=num>-269.0</td><td class='num ai'>-268.9</td><td class=num>1.00</td><td class='num ai'>1.01</td><td class=num>0.82</td><td class='num ai'>0.80</td><td><b class=good>✓</b> same product: liquid helium at 4.2 K</td></tr>
+  </tbody></table></div>
+  <div class="foot">The LNG section (feed, pre-treatment, main exchanger, refrigerant loop) matches Aspen almost exactly. Differences in the storage and helium part come from layout choices that are different in the two models, not from errors; the products (LNG, liquid helium) agree within 1–3 %.</div>
+</section>
+<section class="panel">
+  <h2>How the AI simulator was built, and how to check it did not copy Aspen</h2>
+  <div class="sub">The Python simulator was built in three steps. Aspen data entered only where stated below, and every step can be checked by anyone with the files.</div>
+  <div class="how">
+    <div class="hw"><div class="hn">1</div><b>Blind build, before any Aspen result</b>
+      <span><b>Given:</b> Table 1 feed of my paper, the block diagram, the technologies (C3MR; N₂ and He refrigeration; Collins liquefier) and the property method. Everything else the AI designed itself; each number is labelled GIVEN / CHOSEN / TYPICAL in <code>design_basis.py</code>.</span>
+      <span><b>Predictions sealed</b> on 25 Sep 2026 in <code>predictions_sealed.json</code> with a SHA-256 hash: LNG <b>555.8 t/h</b>, liquid helium <b>807 kg/h</b> (Aspen: 541.4 t/h, 820 kg/h).</span>
+      <span>The blind power was <b>192 MW</b> against Aspen's 332.5 MW, because the AI chose its own pressures and efficiencies: a copied result could not differ like this.</span></div>
+    <div class="hw"><div class="hn">2</div><b>Same-design check, with my Aspen settings</b>
+      <span><b>Given (inputs only):</b> pressures, temperatures, compressor efficiencies, refrigerant composition and inlet states from my Aspen file (<code>aspen_settings.json</code>).</span>
+      <span><b>Computed by Python:</b> power of every machine, <b>331.4 MW</b> total against Aspen's <b>332.5 MW</b> (−0.3 %). Aspen's power results are used only for the comparison column, never in the calculation.</span></div>
+    <div class="hw"><div class="hn">3</div><b>What-if studies</b>
+      <span>For a new feed, Python solves the whole plant again: thermodynamics, flashes, the main exchanger, the boil-off recycle, the N₂ column and the helium liquefier (about 30–40 s).</span>
+      <span>Results are then shown on my Aspen basis (see the table below), so the numbers start exactly from my published design.</span></div>
+  </div>
+  <h3 class="fh">Where Aspen or paper numbers are used directly</h3>
+  <div style="overflow-x:auto"><table class="cmp lft"><thead><tr><th>Where</th><th>What is taken from Aspen or the paper</th><th>What Python computes</th></tr></thead><tbody>
+    <tr><td>Tab 1, live simulator</td><td>Design-feed results of my Aspen model (products, power by section)</td><td>The % change for the new feed, from a full re-solve; applied to the Aspen numbers ("Aspen basis")</td></tr>
+    <tr><td>Money (revenue, costs, profit)</td><td>Prices, operating cost and capital of my paper</td><td>Scaling with products, feed and power</td></tr>
+    <tr><td>Tab 2, comparison</td><td>Aspen results in the "Aspen" columns</td><td>All "AI simulator" / "Python" columns</td></tr>
+    <tr><td>Pre-treatment</td><td>Heavy-hydrocarbon split (HEAVY-HC, 29.9 t/h)</td><td>Everything downstream</td></tr>
+  </tbody></table></div>
+  <h3 class="fh">Check it yourself</h3>
+  <ol class="chk">
+    <li><b>The seal:</b> on Windows run <code>certutil -hashfile predictions_sealed.json SHA256</code> in the simulator folder. It must print <code>d0ea425b…7af69</code>, the value in <code>predictions_sealed.sha256</code>, so the blind predictions have not been changed. (The hash proves the file is unchanged; the seal date is the one written inside the file.)</li>
+    <li><b>Change an Aspen setting:</b> edit a compressor efficiency or pressure in <code>aspen_settings.json</code> and run <code>python same_design.py</code>. The power changes accordingly; a copied number would not.</li>
+    <li><b>Change the feed:</b> press Solve in tab 1; the black window shows the real iterations (recycle, column) for 30–40 s.</li>
+    <li><b>Read the code (tab 3):</b> Aspen results appear only in <code>live_app.py</code> (the <code>ASPEN</code> block, for the Aspen basis and the comparison) and in the settings files; the thermodynamics, flash, column, exchanger and liquefier code contain no Aspen results.</li>
+  </ol>
+</section>
+
+<div class="big3">
+  <div class="kpi"><div class="k">Product flows</div><div class="v" style="font-size:22px">541.4 <span style="color:var(--ink3)">vs</span> <span style="color:var(--ai)">555.8</span><small>t/h LNG</small></div><div class="d">helium 820 vs 807 kg/h · nitrogen 30.9 vs 31.5 t/h</div></div>
+  <div class="kpi"><div class="k">Revenue</div><div class="v" style="font-size:22px">$2,205 <span style="color:var(--ink3)">vs</span> <span style="color:var(--ai)">$2,232</span><small>M / yr</small></div><div class="d">+1.2 % · helium is 30–31 % of revenue in both</div></div>
+  <div class="kpi"><div class="k">Total power</div><div class="v" style="font-size:22px">332.5 <span style="color:var(--ink3)">vs</span> <span style="color:var(--ai)">331.4</span><small>MW</small></div><div class="d">−0.3 % · every machine within 1.2 %</div></div>
+</div>
+<div class="foot" style="margin:4px 2px 0">Aspen Plus <span style="color:var(--ink3)">vs</span> <b style="color:var(--ai)">AI simulator</b>, same feed, same design</div>
+<section class="panel" style="margin-top:10px">
+  <h2>Aspen vs AI simulator: products, revenue, power and money</h2>
+  <div class="sub">Products and revenue: the AI simulator solved all the separations itself (end flash, boil-off recycle, nitrogen column, helium purification) from the same feed. Power: the AI simulator used the same pressures and compressor efficiencies as my Aspen file.</div>
+  <div class="grid2">
+  <div>
+  <table><thead><tr><th></th><th>Aspen Plus</th><th>AI simulator</th><th>Diff.</th></tr></thead><tbody>
+  <tr class="sec"><td colspan="4">Feed</td></tr>
+  <tr><td>Natural gas, t/h</td><td class="num">600</td><td class="num">600</td><td class="num">same</td></tr>
+  <tr><td>Helium / nitrogen in feed, wt %</td><td class="num">0.14 / 7.63</td><td class="num">0.14 / 7.63</td><td class="num">same</td></tr>
+  <tr class="sec"><td colspan="4">Product flows</td></tr>
+  <tr><td>LNG, t/h</td><td class="num">541.4</td><td class="num">555.8</td><td class="num">+2.7 %</td></tr>
+  <tr><td>Liquid helium, kg/h</td><td class="num">820</td><td class="num">807</td><td class="num">−1.5 %</td></tr>
+  <tr><td>Nitrogen, t/h</td><td class="num">30.9</td><td class="num">31.5</td><td class="num">+1.9 %</td></tr>
+  <tr><td>Boil-off gas, t/h</td><td class="num">64.2</td><td class="num">68.1</td><td class="num">+6.1 %</td></tr>
+  <tr><td>Helium in boil-off gas, wt %</td><td class="num">1.28</td><td class="num">1.20</td><td class="num">−6.3 %</td></tr>
+  <tr><td>Helium purity, %</td><td class="num">100</td><td class="num">99.999</td><td class="num">same</td></tr>
+  <tr class="sec"><td colspan="4">Revenue, $ million per year</td></tr>
+  <tr><td>From LNG</td><td class="num">1,487</td><td class="num">1,526</td><td class="num">+2.7 %</td></tr>
+  <tr><td>From helium</td><td class="num">685</td><td class="num">672</td><td class="num">−1.9 %</td></tr>
+  <tr><td>From nitrogen</td><td class="num">33</td><td class="num">34</td><td class="num">+1.9 %</td></tr>
+  <tr><td><b>Total revenue</b></td><td class="num">2,205</td><td class="num">2,232</td><td class="num">+1.2 %</td></tr>
+  <tr><td>Helium share of revenue</td><td class="num">31 %</td><td class="num">30 %</td><td class="num"></td></tr>
+  <tr class="sec"><td colspan="4">Power, MW (same design settings)</td></tr>
+  <tr><td>LNG production (LNGP)</td><td class="num">261.1</td><td class="num">259.9</td><td class="num">−0.4 %</td></tr>
+  <tr><td>Boil-off gas compression (BOGC)</td><td class="num">0.75</td><td class="num">0.76</td><td class="num">+0.1 %</td></tr>
+  <tr><td>N₂ rejection + helium recovery (NRHR)</td><td class="num">67.2</td><td class="num">67.3</td><td class="num">+0.1 %</td></tr>
+  <tr><td>Helium liquefaction (HLS)</td><td class="num">3.51</td><td class="num">3.53</td><td class="num">+0.4 %</td></tr>
+  <tr><td><b>Total power</b></td><td class="num">332.5</td><td class="num">331.4</td><td class="num">−0.3 %</td></tr>
+  <tr class="sec"><td colspan="4">Money, $ million</td></tr>
+  <tr><td>Capital cost</td><td class="num">4,500</td><td class="num">4,500</td><td class="num">same</td></tr>
+  <tr><td>Operating cost / yr</td><td class="num">1,399</td><td class="num">1,398</td><td class="num">−0.1 %</td></tr>
+  <tr><td><b>Profit / yr (estimate)</b></td><td class="num">806</td><td class="num">834</td><td class="num">+3.5 %</td></tr>
+  <tr><td>Payback, years</td><td class="num">7.6</td><td class="num">7.4</td><td class="num">−2.5 %</td></tr>
+  </tbody></table>
+  <div class="foot">Prices from the published paper: LNG $330/t, helium $100,000/t, nitrogen $130/t, 8,322 h/yr (tab 1 lets you change them). Payback is discounted at 10 %, on the paper's basis.</div>
+  </div>
+  <div>
+  <table><thead><tr><th>Machine</th><th>Aspen MW</th><th>AI MW</th></tr></thead><tbody id="chk"></tbody></table>
+  <div class="note ok">Harder test: the AI simulator also solved the whole LNG section on its own (refrigerant loops, exchangers) with my Aspen settings and got <b>251.5 MW</b> against Aspen's <b>261.1 MW</b> (−3.7 %).</div>
+  </div>
+  </div>
+</section>
+</div>
+
+<!-- ================= TAB 3: PYTHON CODE ================= -->
+<div class="tab" id="tab-code">
+<section class="panel">
+  <h2>The Python code of the AI simulator</h2>
+  <div class="sub">Written by the AI (Claude, by Anthropic) from my problem statement: feed, products and process type. No Aspen Plus inside. These are the live files in my LBNH_simulator folder.</div>
+  <div class="ck" id="ck"></div>
+</section>
+<div class="cgrid">
+  <section class="panel cl" id="cl"></section>
+  <section class="panel cv"><div class="ch2"><b id="cn">–</b><span id="cd"></span></div><div class="cbox"><pre id="cgut"></pre><pre id="ctxt"></pre></div></section>
+</div>
+</div>
+</main>
+
+<script src="/three.min.js"></script>
+<script src="/OrbitControls.js"></script>
+<script src="/plant3d.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const f = (x,d=1) => Number(x).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+let cur = null;   // latest result shown
+const BASE0 = __BASE__;
+
+function setDelta(id, a, b){
+  const el = $(id); if(!el) return;
+  const p = (b-a)/a*100;
+  if (!isFinite(p) || Math.abs(p) < 0.05){ el.textContent=''; el.setAttribute('class','delta'); return; }
+  el.textContent = (p>0?'+':'') + f(p,1) + ' %';
+  el.setAttribute('class','delta ' + (p>0?'up':'down'));
+}
+function tween(id, to, d){
+  const el = $(id); if(!el) return;
+  const from = parseFloat((el.textContent||'0').replace(/,/g,'')) || 0, t0 = performance.now(), T = 900;
+  const step = t => { const k = Math.min(1,(t-t0)/T), e = 1-Math.pow(1-k,3); el.textContent = f(from+(to-from)*e, d); if(k<1) requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+}
+function pipeWidth(id, val, ref, base){
+  const g = $(id); if(!g) return;
+  const w = Math.max(2.5, Math.min(base*2.2, base*Math.sqrt(val/ref)));
+  g.querySelector('.pipe').setAttribute('stroke-width', w.toFixed(1));
+  g.querySelector('.pipe-bg').setAttribute('stroke-width', (w*2.3).toFixed(1));
+}
+
+/* ---------- prices: revenue and cost are recalculated from these ---------- */
+const P0 = {lng: 330, he: 100, n2: 130, feed: 180, el: 0.0775};          // the paper's prices
+const ASP = {feed: 600, lng: 541.36, he: 820.0, n2: 30.91, total: 332.543}; // my Aspen design
+const M0 = {lng: 1486.71, he: 684.77, n2: 33.44, raw: 898.78, elec: 214.61, other: 1398.84 - 898.78 - 214.61}; // $M/yr at paper prices
+const MMBTU_PER_T = 52.0;                                                  // LNG / lean gas, about 52 MMBtu per tonne (HHV)
+let PR = {...P0};
+function money(d){
+  const r = { lng: M0.lng * d.lng / ASP.lng * PR.lng / P0.lng,
+              he: M0.he * d.he / ASP.he * PR.he / P0.he,
+              n2: M0.n2 * d.n2 / ASP.n2 * PR.n2 / P0.n2,
+              raw: M0.raw * d.feed / ASP.feed * PR.feed / P0.feed,
+              elec: M0.elec * d.total / ASP.total * PR.el / P0.el,
+              other: M0.other };
+  r.total = r.lng + r.he + r.n2; r.opex = r.raw + r.elec + r.other; r.profit = r.total - r.opex;
+  return r;
+}
+function readPrices(){
+  const g = (id, d) => { const v = parseFloat($(id).value); return isFinite(v) && v >= 0 ? v : d; };
+  PR = {lng: g('price-lng', P0.lng), he: g('price-he', P0.he), n2: g('price-n2', P0.n2), feed: g('price-feed', P0.feed), el: g('price-el', P0.el)};
+  $('price-lng-m').textContent = `≈ $${f(PR.lng / MMBTU_PER_T, 1)} / MMBtu · paper $330/t`;
+  $('price-feed-m').textContent = `≈ $${f(PR.feed / MMBTU_PER_T, 1)} / MMBtu · paper $180/t`;
+  const mod = Object.keys(P0).some(k => Math.abs(PR[k] - P0[k]) > 1e-9);
+  $('pr-tag').textContent = mod ? 'your prices' : 'paper prices'; $('pr-tag').classList.toggle('mod', mod);
+  if (cur) show(cur);
+}
+['price-lng','price-he','price-n2','price-feed','price-el'].forEach(id => $(id).addEventListener('input', readPrices));
+$('pr-reset').onclick = () => { $('price-lng').value = P0.lng; $('price-he').value = P0.he; $('price-n2').value = P0.n2; $('price-feed').value = P0.feed; $('price-el').value = P0.el; readPrices(); };
+
+function show(r){
+  r.base.feed = r.base.feed || ASP.feed; r.new.feed = r.new.feed || r.base.feed;
+  r.rev_base = money(r.base); r.rev_new = money(r.new);
+  cur = r;
+  const B = r.base, N = r.new, RB = r.rev_base, RN = r.rev_new;
+  tween('v-feed', N.feed, 0); $('v-feedhe').textContent = f(r.he_wt,2);
+  tween('v-bog', N.bog, 1); tween('v-boghe', N.bog_he, 2);
+  tween('v-pLNGP', N.LNGP, 1); tween('v-pBOGC', N.BOGC, 1); tween('v-pNRHR', N.NRHR, 1); tween('v-pHLS', N.HLS, 1);
+  tween('v-lng', N.lng, 1); tween('v-n2', N.n2, 1); tween('v-he', N.he, 0); tween('v-total', N.total, 1);
+  tween('v-rlng', RN.lng, 0); tween('v-rn2', RN.n2, 0); tween('v-rhe', RN.he, 0); tween('v-share', RN.he/RN.total*100, 0);
+  [['d-pLNGP','LNGP'],['d-pBOGC','BOGC'],['d-pNRHR','NRHR'],['d-pHLS','HLS'],['d-lng','lng'],['d-n2','n2'],['d-he','he'],['d-total','total']]
+    .forEach(([id,k]) => setDelta(id, B[k], N[k]));
+  pipeWidth('p-feed', N.feed, 600, 6); pipeWidth('p-lng', N.lng, 541, 6); pipeWidth('p-lngout', N.lng, 541, 6);
+  pipeWidth('p-bog', N.bog, 64, 5); pipeWidth('p-bog2', N.bog, 64, 5); pipeWidth('p-n2', N.n2, 30.9, 5);
+  pipeWidth('p-he', N.he, 820, 4); pipeWidth('p-lhe', N.he, 820, 4);
+  results(r);
+  if (window.Plant3D) Plant3D.update(r);
+  tween('h-pow', N.total, 1); tween('h-prof', RN.profit, 0);
+  $('msg').innerHTML = '';
+  if (r.log){
+    const row = (l,a,b,d=1) => `<tr><td>${l}</td><td class="num">${f(a,d)}</td><td class="num"><b>${f(b,d)}</b></td><td class="num">${(()=>{const p=(b-a)/a*100;return Math.abs(p)<0.05?'0.0 %':(p>0?'+':'')+f(p,1)+' %'})()}</td></tr>`;
+    $('detail').innerHTML = `<table><thead><tr><th></th><th>Design feed (Aspen)</th><th>This feed</th><th>Change</th></tr></thead><tbody>`+
+      `<tr class="sec"><td colspan="4">Products</td></tr>`+row('LNG, t/h',B.lng,N.lng)+row('Liquid helium, kg/h',B.he,N.he,0)+row('Nitrogen, t/h',B.n2,N.n2)+row('Boil-off gas, t/h',B.bog,N.bog)+
+      `<tr class="sec"><td colspan="4">Power, MW</td></tr>`+row('LNG liquefaction',B.LNGP,N.LNGP)+row('Boil-off gas compressor',B.BOGC,N.BOGC)+row('N₂ rejection + helium recovery',B.NRHR,N.NRHR)+row('Helium liquefier',B.HLS,N.HLS)+row('Total power',B.total,N.total)+
+      `<tr class="sec"><td colspan="4">Money, $ million per year</td></tr>`+row('Revenue from LNG',RB.lng,RN.lng,0)+row('Revenue from helium',RB.he,RN.he,0)+row('Revenue from nitrogen',RB.n2,RN.n2,0)+row('Total revenue',RB.total,RN.total,0)+row('Operating cost',RB.opex,RN.opex,0)+row('Profit (estimate)',RB.profit,RN.profit,0)+
+      `</tbody></table><p class="foot">Solved by the AI simulator in ${f(r.seconds,0)} s, no Aspen Plus.</p>`;
+  }
+}
+
+/* ---------- solving ---------- */
+let timer;
+async function go(){
+  stopStory();
+  const body = {flow:+$('flow').value, he:+$('he').value, n2:+$('n2').value};
+  document.querySelectorAll('button').forEach(b=>b.disabled=true);
+  $('pfd').classList.add('solving'); if (window.Plant3D) Plant3D.solving(true);
+  const t0 = Date.now();
+  const tick = () => $('status').innerHTML = `Solving the whole plant … <b>${Math.round((Date.now()-t0)/1000)} s</b>`;
+  tick(); timer = setInterval(tick, 500);
+  let r;
+  try { r = await (await fetch('/solve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json(); }
+  catch(e){ r = {ok:false, error:'Lost contact with the simulator. Is the black window still open?'}; }
+  clearInterval(timer); $('pfd').classList.remove('solving'); if (window.Plant3D) Plant3D.solving(false);
+  document.querySelectorAll('button').forEach(b=>b.disabled=false);
+  if (!r.ok){ $('status').textContent=''; $('msg').innerHTML = `<div class="note err">${r.error}</div>`; return; }
+  $('status').innerHTML = `Solved in <b>${f(r.seconds,0)} s</b>, no Aspen Plus.`;
+  show(r);
+}
+$('go').onclick = go;
+document.querySelectorAll('button[data-p]').forEach(b => b.onclick = () => { const [a,h,n]=b.dataset.p.split(','); $('flow').value=a; $('he').value=h; $('n2').value=n; go(); });
+
+/* ---------- story mode ---------- */
+const STEPS = [
+  {on:['g-feed','p-feed'], t: r => `Raw natural gas arrives: <b>${f(r.new.feed,0)} t/h</b>. Only <b>${f(r.he_wt,2)} %</b> of it is helium.`},
+  {on:['g-liq','p-feed','p-lng'], t: r => `Liquefaction: propane and a mixed refrigerant cool the gas to about −162 °C, and it becomes LNG. This step uses <b>${f(r.new.LNGP,0)} MW</b>, most of the plant's power.`},
+  {on:['g-tank','p-lng','p-lngout','p-bog','l-bog'], t: r => `Storage: LNG goes to the tank, and a small part boils off. This boil-off gas carries the helium: <b>${f(r.new.bog_he,1)} %</b> helium, about <b>${f(r.new.bog_he/r.he_wt,0)} times</b> richer than the feed.`},
+  {on:['g-comp','g-nru','p-bog','p-bog2','p-n2','l-bog'], t: r => `Nitrogen rejection: the boil-off gas is compressed, and a cold column separates nitrogen from helium. <b>${f(r.new.BOGC+r.new.NRHR,0)} MW</b>.`},
+  {on:['g-hls','p-he','p-lhe'], t: r => `Helium liquefaction: the helium is cooled to −269 °C, the coldest step in the plant. <b>${f(r.new.HLS,1)} MW</b>.`},
+  {on:['g-prod','p-lngout','p-n2','p-lhe','g-total'], t: r => `Products: LNG <b>${f(r.new.lng,0)} t/h</b>, liquid helium <b>${f(r.new.he,0)} kg/h</b>, nitrogen <b>${f(r.new.n2,0)} t/h</b>. Helium is only ${f(r.he_wt,2)} % of the feed, but <b>${f(r.rev_new.he/r.rev_new.total*100,0)} %</b> of the revenue.`},
+];
+let si = -1, auto = null;
+function story(i){
+  si = Math.max(0, Math.min(STEPS.length-1, i));
+  const s = STEPS[si], svg = $('pfd');
+  svg.classList.add('story');
+  svg.querySelectorAll('.g').forEach(g => g.classList.toggle('on', s.on.includes(g.id)));
+  $('capNum').textContent = si+1; $('capTxt').innerHTML = s.t(cur); $('caption').classList.add('show');
+}
+function stopStory(){ si=-1; clearInterval(auto); auto=null; $('pfd').classList.remove('story'); $('caption').classList.remove('show'); }
+$('play').onclick = () => { if (mode3d && window.Plant3D) { Plant3D.tour(); return; } clearInterval(auto); story(0); auto = setInterval(() => { if (si >= STEPS.length-1){ clearInterval(auto); auto=null; } else story(si+1); }, 6000); };
+$('next').onclick = () => { clearInterval(auto); auto=null; story(si+1); };
+$('prev').onclick = () => { clearInterval(auto); auto=null; story(si-1); };
+$('stop').onclick = stopStory;
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') { if (e.key === 'Enter') go(); return; }
+  if (si < 0) return;
+  if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); $('next').click(); }
+  if (e.key === 'ArrowLeft') $('prev').click();
+  if (e.key === 'Escape') stopStory();
+});
+
+
+/* ---------- results: before/after, splits, meter, products ---------- */
+const HOURS = 8322;
+const chip = (a, b, good) => { const p = (b - a) / a * 100; if (Math.abs(p) < .05) return '<span class="chip same">same</span>';
+  const pos = good === 'up' ? p > 0 : good === 'down' ? p < 0 : null;
+  return `<span class="chip ${pos == null ? 'neu' : pos ? 'good' : 'bad'}">${p > 0 ? '▲ +' : '▼ '}${f(p,1)} %</span>`; };
+function donut(id, parts, mid1, mid2){
+  const cv = $(id), g = cv.getContext('2d'), dpr = window.devicePixelRatio || 1, S = 190;
+  cv.width = S*dpr; cv.height = S*dpr; cv.style.width = S+'px'; cv.style.height = S+'px'; g.scale(dpr, dpr);
+  const tot = parts.reduce((a,p)=>a+p.v,0), t0 = performance.now();
+  const draw = now => { const k = Math.min(1,(now-t0)/700), e = 1-Math.pow(1-k,3); g.clearRect(0,0,S,S);
+    let a = -Math.PI/2;
+    parts.forEach(p => { const da = p.v/tot*2*Math.PI*e; g.beginPath(); g.arc(S/2,S/2,84,a,a+da); g.arc(S/2,S/2,54,a+da,a,true); g.closePath(); g.fillStyle = p.c; g.fill(); a += da; });
+    g.fillStyle = '#10242E'; g.textAlign = 'center'; g.font = '700 18px Consolas,monospace'; g.fillText(mid1, S/2, S/2+3);
+    g.font = '12px Segoe UI,Arial'; g.fillStyle = '#6B8592'; g.fillText(mid2, S/2, S/2+21);
+    if (k < 1) requestAnimationFrame(draw); };
+  requestAnimationFrame(draw);
+}
+function legend(id, parts, base){
+  const tot = parts.reduce((a,p)=>a+p.v,0);
+  $(id).innerHTML = parts.map((p,i) => `<div class="li"><span class="sw" style="background:${p.c}"></span><span class="nm">${p.l}</span>
+    <span class="vv">$${f(p.v,0)} M</span><span class="sh">${f(p.v/tot*100,0)} %</span>${chip(base[i], p.v, p.good)}</div>`).join('');
+}
+function results(r){
+  const B = r.base, N = r.new, RB = r.rev_base, RN = r.rev_new, design = r.seconds == null;
+  $('res-title').textContent = design ? 'Results at the design feed (my Aspen design)' :
+    `Results for ${f(N.feed,0)} t/h feed, helium ${f(r.he_wt,3)} %, nitrogen ${f(r.n2_wt != null ? r.n2_wt : 7.63,2)} %`;
+  $('res-sub').textContent = design ? 'Change the feed above and press Solve: every number below is recalculated.' : 'Compared with the design feed of my Aspen design. Solved by the AI simulator, no Aspen Plus.';
+  { const save = PR; PR = {...P0}; const paper = money(N); PR = save;
+    const mod = Object.keys(P0).some(k => Math.abs(PR[k] - P0[k]) > 1e-9);
+    if (mod) $('res-sub').innerHTML = `At your prices: profit <b>$${f(RN.profit,0)} M / yr</b>, against $${f(paper.profit,0)} M at the paper's prices (${RN.profit >= paper.profit ? '+' : '−'}$${f(Math.abs(RN.profit - paper.profit),0)} M).`; }
+  const card = (ic, k, a, b, unit, d, good, money) => `<div class="bac"><div class="bk">${ic} ${k}</div>
+    <div class="bv">${money ? '$' : ''}<span class="tw" data-to="${b}" data-d="${d}">${f(b,d)}</span><small>${unit}</small></div>
+    <div class="bd"><span>design ${money ? '$' : ''}${f(a,d)}</span><span class="ar">→</span><b>${money ? '$' : ''}${f(b,d)}</b></div>${chip(a,b,good)}</div>`;
+  $('ba').innerHTML =
+    card('🚢','LNG', B.lng, N.lng, 't/h', 1, 'up') + card('🎈','Liquid helium', B.he, N.he, 'kg/h', 0, 'up') +
+    card('⚡','Total power', B.total, N.total, 'MW', 1, 'down') + card('💵','Revenue', RB.total, RN.total, 'M / yr', 0, 'up', 1) +
+    card('🧾','Operating cost', RB.opex, RN.opex, 'M / yr', 0, 'down', 1) + card('📈','Profit', RB.profit, RN.profit, 'M / yr', 0, 'up', 1);
+  document.querySelectorAll('#ba .tw').forEach((e,i) => { e.id = 'ba'+i; e.textContent = '0'; tween('ba'+i, +e.dataset.to, +e.dataset.d); });
+  const rp = [{l:'LNG', v:RN.lng, c:'#1E9BD7', good:'up'}, {l:'Helium', v:RN.he, c:'#DB8500', good:'up'}, {l:'Nitrogen', v:RN.n2, c:'#2E9E48', good:'up'}];
+  donut('c-rev', rp, '$' + f(RN.total,0) + ' M', 'revenue / year'); legend('lg-rev', rp, [RB.lng, RB.he, RB.n2]);
+  const cp = [{l:'Feed gas', v:RN.raw, c:'#7895A8', good:'down'}, {l:'Electricity', v:RN.elec, c:'#B26A00', good:'down'}, {l:'Other', v:RN.other, c:'#B9C6CE', good:'down'}];
+  donut('c-cost', cp, '$' + f(RN.opex,0) + ' M', 'cost / year'); legend('lg-cost', cp, [RB.raw, RB.elec, RB.other]);
+  const perDay = RN.profit * 1e6 / HOURS * 24 / 1000;
+  tween('m-day', perDay, 0); $('m-hour').textContent = f(RN.profit*1e6/HOURS, 0); $('m-yr').textContent = f(RN.profit, 0);
+  const dDay = perDay - RB.profit * 1e6 / HOURS * 24 / 1000;
+  $('m-flash').innerHTML = Math.abs(dDay) < 1 ? '' : `<span class="${dDay > 0 ? 'good' : 'bad'}">${dDay > 0 ? '+' : '−'}$${f(Math.abs(dDay),0)}k per day vs the design feed</span>`;
+  const day = x => x * 24;
+  const pc = (ic, k, t, extra, a, b) => `<div class="pci"><div class="pi">${ic}</div><div><div class="pk">${k}</div><div class="pv">${t}</div><div class="pe">${extra}</div>${chip(a,b,'up')}</div></div>`;
+  const lngDay = day(N.lng), heDay = day(N.he) / 1000, n2Day = day(N.n2);
+  $('pc').innerHTML =
+    pc('🚢', 'LNG', `${f(lngDay,0)} t / day`, `one LNG carrier every <b>${f(76000/lngDay,1)} days</b> (${f(lngDay*30/76000,1)} a month)`, B.lng, N.lng) +
+    pc('🎈', 'Liquid helium', `${f(heDay,1)} t / day`, `about <b>${f(heDay/5.1,1)} ISO containers</b> a day · $${f(RN.he*1e6/HOURS*24/1000,0)}k a day`, B.he, N.he) +
+    pc('🚛', 'Nitrogen', `${f(n2Day,0)} t / day`, `about <b>${f(n2Day/20,0)} road tankers</b> a day`, B.n2, N.n2);
+}
+
+/* ---------- 3D / 2D switch ---------- */
+let mode3d = true;
+function setMode(m){ mode3d = m; $('p3').style.display = m ? '' : 'none'; $('diagPanel').style.display = m ? 'none' : '';
+  $('v3d').classList.toggle('on', m); $('v2d').classList.toggle('on', !m); stopStory(); if (window.Plant3D) Plant3D.stopTour(); }
+$('v3d').onclick = () => setMode(true); $('v2d').onclick = () => setMode(false);
+if (!(window.THREE && window.Plant3D && Plant3D.init($('p3')))) setMode(false);
+
+/* ---------- tab 3: Python code ---------- */
+let CODEF = null;
+async function loadCode(){
+  if (CODEF) return;
+  try { CODEF = await (await fetch('/code')).json(); } catch(e){ $('cl').textContent = 'Could not read the code files.'; return; }
+  const tot = CODEF.reduce((a,c)=>a+c.lines,0), groups = [...new Set(CODEF.map(c=>c.group))];
+  $('ck').innerHTML = `<div class="kpi"><div class="k">Python files</div><div class="v">${CODEF.length}</div><div class="d">simulator and economics</div></div>
+    <div class="kpi"><div class="k">Lines of Python</div><div class="v">${f(tot,0)}</div><div class="d">all written by the AI</div></div>
+    <div class="kpi"><div class="k">Sections</div><div class="v">${groups.length}</div><div class="d">thermodynamics → whole plant → economics</div></div>
+    <div class="kpi"><div class="k">Aspen Plus inside</div><div class="v">none</div><div class="d">open-source Python only</div></div>`;
+  let h = '', last = '';
+  CODEF.forEach((c,i) => { if (c.group !== last){ h += `<div class="cg">${c.group}</div>`; last = c.group; }
+    h += `<div class="cf" data-i="${i}"><b>${c.name.replace('optimization/','')}</b><span>${f(c.lines,0)} lines</span><div>${c.desc}</div></div>`; });
+  $('cl').innerHTML = h;
+  document.querySelectorAll('.cf').forEach(e => e.onclick = () => openCode(+e.dataset.i));
+  openCode(CODEF.findIndex(c => c.name === 'plant.py'));
+}
+function openCode(i){
+  const c = CODEF[i]; if (!c) return;
+  document.querySelectorAll('.cf').forEach(e => e.classList.toggle('on', +e.dataset.i === i));
+  $('cn').textContent = c.name; $('cd').textContent = `${c.desc} · ${f(c.lines,0)} lines`;
+  $('ctxt').textContent = c.text; $('cgut').textContent = Array.from({length: c.lines}, (_,k) => k+1).join('\n');
+  $('ctxt').parentElement.scrollTop = 0;
+}
+document.querySelector('.tabs button[data-tab=code]').addEventListener('click', loadCode);
+show(BASE0);
+
+
+const APP_MODE = "__MODE__";            // "laptop" or "web"
+
+/* ---------- tabs ---------- */
+let barsDone = false;
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+  stopStory();
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b));
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.id === 'tab-' + b.dataset.tab));
+});
+document.querySelectorAll('.fs').forEach(el => el.onclick = () => el.classList.toggle('big'));
+const CHK = [['CMP-11',29.80,29.77],['CMP-12',24.23,24.16],['CMP-13',15.98,15.92],['CMP-21',58.86,58.90],['CMP-22',69.35,69.04],['CMP-23',62.86,62.12],
+  ['CMP-FBOG',0.55,0.55],['CMP-TBOG',0.05,0.05],['LNG-PMP',0.16,0.16],['HE-CMPR',5.66,5.72],['N2-CMPR',61.54,61.53],['HLB1',0.66,0.66],['HLB2',1.09,1.09],['HLB3',1.77,1.78]];
+$('chk').innerHTML = CHK.map(([n,a,b]) => `<tr><td>${n}</td><td class="num">${f(a,2)}</td><td class="num">${f(b,2)}</td></tr>`).join('');
+</script>
+</body></html>
