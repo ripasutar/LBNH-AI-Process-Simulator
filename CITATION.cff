@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Can AI take Aspen out of the loop? An AI-built Python simulator of an LNG plant with helium recovery and liquefaction"
+authors:
+  - family-names: Sutar
+    given-names: Ripa
+    affiliation: "Lamar University, Department of Chemical Engineering"
+date-released: 2026-11-17
+license: MIT
